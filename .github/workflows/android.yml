@@ -16,31 +16,38 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21 (Temurin)
         uses: actions/setup-java@v4
         with:
-          distribution: temurin
-          java-version: '17'
+          distribution: 'temurin'
+          java-version: '21'
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      - name: Accept Android SDK licenses & ensure SDK permissions
         run: |
-          sdkmanager "platform-tools"
-          sdkmanager "platforms;android-35"
-          sdkmanager "build-tools;35.0.0"
+          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
 
-      - name: Prepare .env.example
-        run: |
-          if [ ! -f .env.example ]; then
-            touch .env.example
+          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
+          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
+
+          sudo chown -R "$(id -u):$(id -g)" "$SDK_DIR" || true
+
+          SDKMANAGER=$(find "$SDK_DIR" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
+
+          if [ -n "$SDKMANAGER" ]; then
+            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
+
+            "$SDKMANAGER" \
+              "platform-tools" \
+              "platforms;android-36" \
+              "build-tools;36.0.0" \
+              >/dev/null 2>&1 || true
           fi
 
-      - name: Prepare debug keystore
+      - name: Prepare debug.keystore
         run: |
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
+
           elif [ ! -f debug.keystore ]; then
             keytool -genkeypair \
               -v \
@@ -54,17 +61,24 @@ jobs:
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Set up Gradle
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: '9.3.1'
+      - name: Prepare .env.example
+        run: |
+          if [ ! -f .env.example ]; then
+            touch .env.example
+          fi
 
       - name: Build Debug APK
+        env:
+          GRADLE_OPTS: "-Xmx3g -Dorg.gradle.jvmargs=-Xmx3g"
+
         run: |
-          chmod +x ./gradlew
-          ./gradlew :app:assembleDebug \
-            --no-daemon \
-            --stacktrace
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew :app:assembleDebug --no-daemon --stacktrace
+          else
+            echo "ERROR: gradlew file is missing!"
+            exit 1
+          fi
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
