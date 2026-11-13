@@ -1,0 +1,4 @@
+<resources>
+    <string name="app_name">DocScan PDF</string>
+    <string name="app_description">অফলাইন ডকুমেন্ট স্ক্যানার ও PDF মেকার</string>
+</resources>

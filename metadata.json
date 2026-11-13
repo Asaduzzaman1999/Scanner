@@ -1,0 +1,6 @@
+{
+  "name": "DocScan PDF",
+  "description": "Offline-first PDF Maker and Document Scanner with Auto-Crop, Batch Scan, NID Dual-Side Composer, PDF Editor, PDF to Images, OCR, and AdMob Test Ads.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
