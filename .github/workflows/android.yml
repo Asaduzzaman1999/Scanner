@@ -12,35 +12,45 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21 (Temurin)
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '21'
+          distribution: temurin
+          java-version: '17'
 
-      - name: Accept Android SDK licenses & ensure SDK permissions
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
         run: |
-          SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-/usr/local/lib/android/sdk}}"
-          echo "ANDROID_HOME=$SDK_DIR" >> "$GITHUB_ENV"
-          echo "ANDROID_SDK_ROOT=$SDK_DIR" >> "$GITHUB_ENV"
-          sudo chown -R "$(id -u):$(id -g)" "$SDK_DIR" || true
-          SDKMANAGER=$(find "$SDK_DIR" -name sdkmanager -type f 2>/dev/null | head -n 1 || true)
-          if [ -n "$SDKMANAGER" ]; then
-            yes | "$SDKMANAGER" --licenses >/dev/null 2>&1 || true
-            "$SDKMANAGER" "platforms;android-36" "platforms;android-36.1" "build-tools;36.0.0" >/dev/null 2>&1 || true
+          sdkmanager "platform-tools"
+          sdkmanager "platforms;android-35"
+          sdkmanager "build-tools;35.0.0"
+
+      - name: Prepare .env.example
+        run: |
+          if [ ! -f .env.example ]; then
+            touch .env.example
           fi
 
-      - name: Prepare debug.keystore
+      - name: Prepare debug keystore
         run: |
           if [ -f debug.keystore.base64 ]; then
             base64 -d debug.keystore.base64 > debug.keystore
           elif [ ! -f debug.keystore ]; then
-            keytool -genkey -v -keystore debug.keystore \
-              -storepass android -alias androiddebugkey -keypass android \
-              -keyalg RSA -keysize 2048 -validity 10000 \
+            keytool -genkeypair \
+              -v \
+              -keystore debug.keystore \
+              -storepass android \
+              -alias androiddebugkey \
+              -keypass android \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
               -dname "CN=Android Debug,O=Android,C=US"
           fi
 
@@ -50,15 +60,11 @@ jobs:
           gradle-version: '9.3.1'
 
       - name: Build Debug APK
-        env:
-          GRADLE_OPTS: "-Xmx3g -Dorg.gradle.jvmargs=-Xmx3g"
         run: |
-          if [ -f ./gradlew ]; then
-            chmod +x ./gradlew
-            ./gradlew :app:assembleDebug --no-daemon --stacktrace
-          else
-            gradle :app:assembleDebug --no-daemon --stacktrace
-          fi
+          chmod +x ./gradlew
+          ./gradlew :app:assembleDebug \
+            --no-daemon \
+            --stacktrace
 
       - name: Upload Debug APK
         uses: actions/upload-artifact@v4
